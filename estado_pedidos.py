@@ -228,7 +228,7 @@ def cocina_a_empaquetamiento(event, context):
 
     # 1) Terminar COCINA
     tabla_cocina.update_item(
-        Key={"uuid": uuid_pedido},
+        Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
         UpdateExpression="SET hora_fin = :hf, #st = :s",
         ExpressionAttributeNames={"#st": "status"},
         ExpressionAttributeValues={
@@ -298,7 +298,7 @@ def empaquetamiento_a_delivery(event, context):
     """
     event = parse_event(event)
 
-    pedido, error = validar_pedido_y_estado(event, "empaquetamiento")
+    pedido, error = validar_pedido_y_estado(event, "EMPAQUETAMIENTO")
     if error:
         return error
 
@@ -386,7 +386,7 @@ def delivery_a_entregado(event, context):
     """
     event = parse_event(event)
 
-    pedido, error = validar_pedido_y_estado(event, "delivery")
+    pedido, error = validar_pedido_y_estado(event, "DELIVERY")
     if error:
         return error
 
@@ -408,7 +408,7 @@ def delivery_a_entregado(event, context):
             "uuid": uuid_pedido
         },
         UpdateExpression="SET estado_pedido = :e",
-        ExpressionAttributeValues={":e": "entregado"}
+        ExpressionAttributeValues={":e": "ENTREGADO"}
     )
 
     return {
