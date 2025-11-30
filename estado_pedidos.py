@@ -175,7 +175,7 @@ def pagado_a_cocina(event, context):
 
     # 2) Actualizar estado del pedido a 'cocina' + token si aplica
     update_expr = "SET estado_pedido = :e"
-    expr_values = {":e": "cocina"}
+    expr_values = {":e": "COCINA"}
 
     if task_token:
         update_expr += ", task_token_cocina = :t"
@@ -217,7 +217,7 @@ def cocina_a_empaquetamiento(event, context):
     """
     event = parse_event(event)
 
-    pedido, error = validar_pedido_y_estado(event, "cocina")
+    pedido, error = validar_pedido_y_estado(event, "COCINA")
     if error:
         return error
 
@@ -250,7 +250,7 @@ def cocina_a_empaquetamiento(event, context):
 
     # 3) Actualizar estado del pedido a 'empaquetamiento' + token
     update_expr = "SET estado_pedido = :e"
-    expr_values = {":e": "empaquetamiento"}
+    expr_values = {":e": "EMPAQUETAMIENTO"}
 
     if task_token:
         update_expr += ", task_token_empaquetamiento = :t"
@@ -338,7 +338,7 @@ def empaquetamiento_a_delivery(event, context):
 
     # 3) Actualizar estado del pedido a 'delivery' + token
     update_expr = "SET estado_pedido = :e"
-    expr_values = {":e": "delivery"}
+    expr_values = {":e": "DELIVERY"}
 
     if task_token:
         update_expr += ", task_token_delivery = :t"
@@ -644,24 +644,50 @@ def confirmar_paso(event, context):
 
     # 2) Actualizar info opcional (empleado / repartidor) y enviar callback
     try:
-        # 2.a) Actualizar COCINA / DESPACHADOR / DELIVERY según el paso
-        if paso == "cocina-lista" and id_empleado:
+        # 2.a) Actualizar datos opcionales SOLAMENTE (Step Functions manejará las transiciones)
+        if paso == "cocina-lista":
+            # Solo marcar cocina como terminada y actualizar empleado opcional
+            update_expr = "SET hora_fin = :hf, #st = :s"
+            expr_vals = {
+                ":hf": obtener_timestamp_iso(),
+                ":s": "terminado"
+            }
+            if id_empleado:
+                update_expr += ", id_empleado = :e"
+                expr_vals[":e"] = id_empleado
+                
             tabla_cocina.update_item(
                 Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
-                UpdateExpression="SET id_empleado = :e",
-                ExpressionAttributeValues={":e": id_empleado}
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames={"#st": "status"},
+                ExpressionAttributeValues=expr_vals
             )
 
-        elif paso == "empaquetamiento-listo" and id_empleado:
+        elif paso == "empaquetamiento-listo":
+            # Solo marcar empaquetamiento como terminado y actualizar empleado opcional
+            update_expr = "SET hora_fin = :hf, #st = :s"
+            expr_vals = {
+                ":hf": obtener_timestamp_iso(),
+                ":s": "terminado"
+            }
+            if id_empleado:
+                update_expr += ", id_empleado = :e"
+                expr_vals[":e"] = id_empleado
+                
             tabla_despachador.update_item(
                 Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
-                UpdateExpression="SET id_empleado = :e",
-                ExpressionAttributeValues={":e": id_empleado}
+                UpdateExpression=update_expr,
+                ExpressionAttributeNames={"#st": "status"},
+                ExpressionAttributeValues=expr_vals
             )
 
         elif paso == "delivery-entregado":
-            update_expr = []
-            expr_vals = {}
+            # Solo marcar delivery como cumplido y actualizar datos opcionales
+            update_expr = ["hora_entrega = :he", "#st = :s"]
+            expr_vals = {
+                ":he": obtener_timestamp_iso(),
+                ":s": "cumplido"
+            }
 
             if repartidor:
                 update_expr.append("repartidor = :r")
@@ -676,12 +702,12 @@ def confirmar_paso(event, context):
                 update_expr.append("destino = :d")
                 expr_vals[":d"] = destino
 
-            if update_expr:
-                tabla_delivery.update_item(
-                    Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
-                    UpdateExpression="SET " + ", ".join(update_expr),
-                    ExpressionAttributeValues=expr_vals
-                )
+            tabla_delivery.update_item(
+                Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
+                UpdateExpression="SET " + ", ".join(update_expr),
+                ExpressionAttributeNames={"#st": "status"},
+                ExpressionAttributeValues=expr_vals
+            )
 
         # 2.b) Enviar callback a Step Functions
         resp_sf = stepfunctions_client.send_task_success(
