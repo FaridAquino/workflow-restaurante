@@ -395,7 +395,7 @@ def delivery_a_entregado(event, context):
 
     # 1) Actualizar DELIVERY
     tabla_delivery.update_item(
-        Key={"uuid": uuid_pedido},
+        Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
         UpdateExpression="SET #st = :s",
         ExpressionAttributeNames={"#st": "status"},
         ExpressionAttributeValues={":s": "cumplido"}
