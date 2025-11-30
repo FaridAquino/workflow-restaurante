@@ -493,43 +493,20 @@ def obtener_pedido(event, context):
 
 def listar_pedidos(event, context):
     """
-    GET /pedidos?tenant_id=X&estado=cocina,delivery
-    Devuelve todos los pedidos de un tenant, filtrando por uno o varios estados.
+    GET /pedidos
+    Devuelve todos los pedidos que tengan estado PAGADO.
     """
 
     print("DEBUG listar_pedidos raw event:", json.dumps(event))
 
-    event = parse_event(event)
-
-    tenant_id = event.get("tenant_id")
-    estados_raw = event.get("estado")  # puede ser "cocina", "cocina,delivery", etc.
-
-    if not tenant_id or not estados_raw:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({
-                "mensaje": "Debe enviar tenant_id y estado (uno o varios separados por coma)."
-            })
-        }
-
-    # Procesar lista de estados
-    lista_estados = [e.strip() for e in estados_raw.split(",") if e.strip()]
-
-    print("DEBUG lista_estados:", lista_estados)
-
-    pedidos_finales = []
+    pedidos_pagados = []
 
     try:
-        # Query por tenant_id
-        resp = tabla_pedidos.query(
-            KeyConditionExpression=Key("tenant_id").eq(tenant_id)
+        # Scan toda la tabla para buscar pedidos PAGADO
+        resp = tabla_pedidos.scan(
+            FilterExpression=Attr("estado_pedido").eq("PAGADO")
         )
-        items = resp.get("Items", [])
-
-        # Filtrar manualmente por los estados solicitados
-        for item in items:
-            if item.get("estado_pedido") in lista_estados:
-                pedidos_finales.append(item)
+        pedidos_pagados = resp.get("Items", [])
 
     except Exception as e:
         return {
@@ -543,10 +520,8 @@ def listar_pedidos(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "tenant_id": tenant_id,
-            "filtro_estados": lista_estados,
-            "cantidad": len(pedidos_finales),
-            "pedidos": pedidos_finales
+            "cantidad": len(pedidos_pagados),
+            "pedidos": pedidos_pagados
         }, default=decimal_default)
     }
 
