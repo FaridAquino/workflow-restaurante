@@ -494,19 +494,19 @@ def obtener_pedido(event, context):
 def listar_pedidos(event, context):
     """
     GET /pedidos
-    Devuelve todos los pedidos que tengan estado PAGADO.
+    Devuelve todos los pedidos que NO tengan estado PENDIENTE_PAGO.
     """
 
     print("DEBUG listar_pedidos raw event:", json.dumps(event))
 
-    pedidos_pagados = []
+    pedidos_filtrados = []
 
     try:
-        # Scan toda la tabla para buscar pedidos PAGADO
+        # Scan toda la tabla para buscar pedidos que NO sean PENDIENTE_PAGO
         resp = tabla_pedidos.scan(
-            FilterExpression=Attr("estado_pedido").eq("PAGADO")
+            FilterExpression=Attr("estado_pedido").ne("PENDIENTE_PAGO")
         )
-        pedidos_pagados = resp.get("Items", [])
+        pedidos_filtrados = resp.get("Items", [])
 
     except Exception as e:
         return {
@@ -520,8 +520,8 @@ def listar_pedidos(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "cantidad": len(pedidos_pagados),
-            "pedidos": pedidos_pagados
+            "cantidad": len(pedidos_filtrados),
+            "pedidos": pedidos_filtrados
         }, default=decimal_default)
     }
 
