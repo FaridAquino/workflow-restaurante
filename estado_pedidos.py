@@ -740,8 +740,15 @@ def confirmar_paso(event, context):
 
 def iniciar_proceso_step_function(event, context):
     """
-    Recibe un POST con { "tenant_id": "...", "uuid": "..." }
-    Inicia la ejecución del Step Function asociado.
+    Recibe un POST con:
+    { 
+      "tenant_id": "...", 
+      "uuid": "...", 
+      "cliente_email": "...", 
+      "origen": "...", 
+      "destino": "..." 
+    }
+    Inicia la ejecución del Step Function pasando TODOS los parámetros.
     """
     print("DEBUG iniciar_proceso raw:", json.dumps(event))
     
@@ -749,6 +756,7 @@ def iniciar_proceso_step_function(event, context):
     data = parse_event(event)
     
     tenant_id = data.get("tenant_id")
+    # Aceptamos uuid o uuid_pedido
     uuid_pedido = data.get("uuid_pedido") or data.get("uuid")
 
     if not tenant_id or not uuid_pedido:
@@ -766,12 +774,17 @@ def iniciar_proceso_step_function(event, context):
         }
 
     # 3. Preparar el input para el Step Function
-    # Este input será el que reciba el primer estado de tu máquina
-    input_sf = {
-        "tenant_id": tenant_id,
-        "uuid": uuid_pedido,
-        "fecha_inicio": obtener_timestamp_iso()
-    }
+    # ------------------------------------------------------------------
+    # CAMBIO IMPORTANTE: Usamos data.copy() para conservar
+    # cliente_email, origen y destino que vienen del Frontend
+    # ------------------------------------------------------------------
+    input_sf = data.copy()
+    
+    # Aseguramos que el campo se llame 'uuid' para el Step Function
+    input_sf["uuid"] = uuid_pedido
+    
+    # Agregamos la fecha de inicio
+    input_sf["fecha_inicio"] = obtener_timestamp_iso()
 
     try:
         # Usamos tenant_id + uuid como nombre de ejecución para evitar duplicados (idempotencia)
@@ -788,7 +801,8 @@ def iniciar_proceso_step_function(event, context):
             "body": json.dumps({
                 "mensaje": "Step Function iniciada correctamente",
                 "executionArn": response.get("executionArn"),
-                "fecha_inicio": response.get("startDate").isoformat()
+                "fecha_inicio": response.get("startDate").isoformat(),
+                "datos_enviados": input_sf # Para confirmar qué se envió
             })
         }
 
@@ -803,4 +817,3 @@ def iniciar_proceso_step_function(event, context):
             "statusCode": 500,
             "body": json.dumps({"mensaje": "Error interno al iniciar Step Function", "detalle": str(e)})
         }
-
