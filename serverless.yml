@@ -17,6 +17,7 @@ provider:
     TABLA_COCINA: ${self:service}-cocina-${sls:stage}
     TABLA_DESPACHADOR: ${self:service}-despachador-${sls:stage}
     TABLA_DELIVERY: ${self:service}-delivery-${sls:stage}
+    STATE_MACHINE_ARN: "arn:aws:states:us-east-1:738683684819:stateMachine:WorkflowRestaurante"
 
 plugins:
   # plugin de step functions lo puedes re-activar cuando definas la máquina de estados
@@ -87,6 +88,13 @@ functions:
       - httpApi:
           path: /pedidos
           method: get
+          
+  iniciarFlujo:
+    handler: estado_pedidos.iniciar_proceso_step_function
+    events:
+      - httpApi:
+          path: /workflow/iniciar
+          method: post
 
 resources:
   Resources:

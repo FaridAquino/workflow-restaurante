@@ -736,7 +736,71 @@ def confirmar_paso(event, context):
         })
     }
 
+# ------------------------- Lambda Trigger: Iniciar Step Function ------------------------- #
 
+def iniciar_proceso_step_function(event, context):
+    """
+    Recibe un POST con { "tenant_id": "...", "uuid": "..." }
+    Inicia la ejecución del Step Function asociado.
+    """
+    print("DEBUG iniciar_proceso raw:", json.dumps(event))
+    
+    # 1. Parsear evento
+    data = parse_event(event)
+    
+    tenant_id = data.get("tenant_id")
+    uuid_pedido = data.get("uuid_pedido") or data.get("uuid")
 
+    if not tenant_id or not uuid_pedido:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"mensaje": "Faltan tenant_id o uuid"})
+        }
 
+    # 2. Obtener el ARN de la Step Function desde variables de entorno
+    sf_arn = os.getenv("STATE_MACHINE_ARN")
+    if not sf_arn:
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"mensaje": "Error de configuración: STATE_MACHINE_ARN no definido"})
+        }
+
+    # 3. Preparar el input para el Step Function
+    # Este input será el que reciba el primer estado de tu máquina
+    input_sf = {
+        "tenant_id": tenant_id,
+        "uuid": uuid_pedido,
+        "fecha_inicio": obtener_timestamp_iso()
+    }
+
+    try:
+        # Usamos tenant_id + uuid como nombre de ejecución para evitar duplicados (idempotencia)
+        execution_name = f"{tenant_id}-{uuid_pedido}-{int(datetime.now().timestamp())}"
+
+        response = stepfunctions_client.start_execution(
+            stateMachineArn=sf_arn,
+            name=execution_name, 
+            input=json.dumps(input_sf)
+        )
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({
+                "mensaje": "Step Function iniciada correctamente",
+                "executionArn": response.get("executionArn"),
+                "fecha_inicio": response.get("startDate").isoformat()
+            })
+        }
+
+    except stepfunctions_client.exceptions.ExecutionAlreadyExists:
+        return {
+            "statusCode": 409,
+            "body": json.dumps({"mensaje": "Ya existe una ejecución en curso para este pedido"})
+        }
+    except Exception as e:
+        print("ERROR iniciando SF:", str(e))
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"mensaje": "Error interno al iniciar Step Function", "detalle": str(e)})
+        }
 
