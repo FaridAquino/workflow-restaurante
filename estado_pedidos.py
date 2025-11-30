@@ -164,6 +164,7 @@ def pagado_a_cocina(event, context):
 
     # 1) Crear registro en COCINA
     item_cocina = {
+        "tenant_id": tenant_id,
         "uuid": uuid_pedido,
         "id_empleado": id_empleado or "no_asignado",
         "hora_comienzo": obtener_timestamp_iso(),
@@ -238,11 +239,12 @@ def cocina_a_empaquetamiento(event, context):
 
     # 2) Crear registro en DESPACHADOR (empaquetamiento)
     item_despachador = {
+        "tenant_id": tenant_id,
         "uuid": uuid_pedido,
         "id_empleado": id_empleado_despachador or "no_asignado",
         "hora_comienzo": obtener_timestamp_iso(),
         "hora_fin": None,
-        "status": "cocinando"  # puedes cambiar el texto a 'empaquetando' si quieres
+        "status": "empaquetando"
     }
     tabla_despachador.put_item(Item=item_despachador)
 
@@ -311,7 +313,7 @@ def empaquetamiento_a_delivery(event, context):
 
     # 1) Terminar empaquetamiento (DESPACHADOR)
     tabla_despachador.update_item(
-        Key={"uuid": uuid_pedido},
+        Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
         UpdateExpression="SET hora_fin = :hf, #st = :s",
         ExpressionAttributeNames={"#st": "status"},
         ExpressionAttributeValues={
@@ -322,13 +324,15 @@ def empaquetamiento_a_delivery(event, context):
 
     # 2) Crear registro en DELIVERY
     item_delivery = {
-        "uuid": uuid_pedido,
         "tenant_id": tenant_id,
+        "uuid": uuid_pedido,
         "repartidor": repartidor or "no_asignado",
         "id_repartidor": id_repartidor or "no_asignado",
-        "origen": origen or "no_definido",
-        "destino": destino or "no_definido",
-        "status": "en camino"
+        "hora_recogida": obtener_timestamp_iso(),
+        "hora_entrega": None,
+        "status": "en_camino",
+        "origen": origen or "restaurante",
+        "destino": destino or "desconocido"
     }
     tabla_delivery.put_item(Item=item_delivery)
 
@@ -463,15 +467,15 @@ def obtener_pedido(event, context):
         }
 
     # 2. Obtener COCINA
-    cocina_resp = tabla_cocina.get_item(Key={"uuid": uuid_pedido})
+    cocina_resp = tabla_cocina.get_item(Key={"tenant_id": tenant_id, "uuid": uuid_pedido})
     cocina = cocina_resp.get("Item", {})
 
     # 3. Obtener EMPAQUETAMIENTO
-    des_resp = tabla_despachador.get_item(Key={"uuid": uuid_pedido})
+    des_resp = tabla_despachador.get_item(Key={"tenant_id": tenant_id, "uuid": uuid_pedido})
     despachador = des_resp.get("Item", {})
 
     # 4. Obtener DELIVERY
-    delivery_resp = tabla_delivery.get_item(Key={"uuid": uuid_pedido})
+    delivery_resp = tabla_delivery.get_item(Key={"tenant_id": tenant_id, "uuid": uuid_pedido})
     delivery = delivery_resp.get("Item", {})
 
     return {
@@ -643,14 +647,14 @@ def confirmar_paso(event, context):
         # 2.a) Actualizar COCINA / DESPACHADOR / DELIVERY según el paso
         if paso == "cocina-lista" and id_empleado:
             tabla_cocina.update_item(
-                Key={"uuid": uuid_pedido},
+                Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
                 UpdateExpression="SET id_empleado = :e",
                 ExpressionAttributeValues={":e": id_empleado}
             )
 
         elif paso == "empaquetamiento-listo" and id_empleado:
             tabla_despachador.update_item(
-                Key={"uuid": uuid_pedido},
+                Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
                 UpdateExpression="SET id_empleado = :e",
                 ExpressionAttributeValues={":e": id_empleado}
             )
@@ -674,7 +678,7 @@ def confirmar_paso(event, context):
 
             if update_expr:
                 tabla_delivery.update_item(
-                    Key={"uuid": uuid_pedido},
+                    Key={"tenant_id": tenant_id, "uuid": uuid_pedido},
                     UpdateExpression="SET " + ", ".join(update_expr),
                     ExpressionAttributeValues=expr_vals
                 )

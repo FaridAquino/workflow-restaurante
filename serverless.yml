@@ -1,4 +1,4 @@
-org: gerardiruri31utec
+org: faridaquino
 service: pedidos-universidad
 
 provider:
@@ -96,11 +96,15 @@ resources:
         TableName: ${self:service}-cocina-${sls:stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: uuid
             AttributeType: S
         KeySchema:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
             KeyType: HASH # PK
+          - AttributeName: uuid
+            KeyType: RANGE # SK
 
     DespachadorTable:
       Type: AWS::DynamoDB::Table
@@ -108,11 +112,15 @@ resources:
         TableName: ${self:service}-despachador-${sls:stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: uuid
             AttributeType: S
         KeySchema:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
             KeyType: HASH # PK
+          - AttributeName: uuid
+            KeyType: RANGE # SK
 
     DeliveryTable:
       Type: AWS::DynamoDB::Table
@@ -120,11 +128,15 @@ resources:
         TableName: ${self:service}-delivery-${sls:stage}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
+            AttributeType: S
+          - AttributeName: uuid
             AttributeType: S
         KeySchema:
-          - AttributeName: id_pedido
+          - AttributeName: tenant_id
             KeyType: HASH # PK
+          - AttributeName: uuid
+            KeyType: RANGE # SK
 
     # =============================
     # COLAS SQS POR PASO
