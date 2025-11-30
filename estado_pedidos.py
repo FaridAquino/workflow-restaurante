@@ -153,7 +153,7 @@ def pagado_a_cocina(event, context):
     """
     event = parse_event(event)
 
-    pedido, error = validar_pedido_y_estado(event, "pagado")
+    pedido, error = validar_pedido_y_estado(event, "PAGADO")
     if error:
         return error
 
